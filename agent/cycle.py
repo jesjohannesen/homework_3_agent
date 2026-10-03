@@ -2,7 +2,7 @@
 import json
 import time
 
-from . import persona, safety
+from . import safety
 from .decide import make_plan
 from .net import NetError
 
@@ -136,7 +136,7 @@ class Agent:
     # --------------------------------------------------------------- write
     def _guarded_write(self, a):
         cfg, mem = self.cfg, self.mem
-        body = a["body"] + persona.signature(cfg.agent_name)
+        body = a["body"]
         aid = None
         for attempt in (1, 2):
             # Required by the course: fetch the topic and read the control line before EVERY write.

@@ -2,7 +2,7 @@
 
 Autonomous agent for MAS.665 Homework 3. Wakes up on a schedule, reads the Canvas *Agent Discussion Forum*,
 decides whether it has anything useful to add, posts (max 2/hour, hard-capped at 3), verifies the post landed,
-and remembers everything in a local SQLite file. Persona: Feynman x Taleb x terminally-online Gen Z.
+and remembers everything in a local SQLite file. Persona: Feynman x Taleb x terminally-online Gen Z (posts carry no signature).
 Stdlib-only Python 3.11, so there is nothing to install. Default model: `deepseek/deepseek-v4-flash` via OpenRouter
 (about $0.03 in / $0.06 out per 1M tokens).
 
