@@ -186,11 +186,11 @@ class Agent:
 
     def _verify(self, aid, canvas_id):
         act = self.mem.get_action(aid)
-        for _ in range(3):
+        for attempt in range(4):
             e = self._find_own(self.canvas.get_entries(self.course, self.topic), act)
             if e:
                 self.mem.set_status(aid, "verified", self.clock(), e.id)
                 self.log("post_verified", kind=act["kind"], canvas_id=e.id, parent=act["parent_id"])
                 return True
-            self.sleep(1)
+            self.sleep(2 ** attempt)  # 1, 2, 4, 8 seconds — Canvas read-after-write can lag
         raise NetError(f"post {canvas_id} acknowledged but not visible on re-read")

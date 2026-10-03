@@ -1,0 +1,25 @@
+{"ts": 1791039511.9, "cycle": 1, "event": "control_line", "state": "RUNNING"}
+{"ts": 1791039512.6, "cycle": 1, "event": "cycle_failed", "why": "NetError: llm HTTP 401", "consecutive": 1}
+{"ts": 1791039512.6, "cycle": 1, "event": "cycle_end", "outcome": "error", "detail": "NetError: llm HTTP 401"}
+{"ts": 1791039786.7, "cycle": 2, "event": "control_line", "state": "RUNNING"}
+{"ts": 1791039825.7, "cycle": 2, "event": "llm_decision", "shown": 30, "proposed": 1, "rejected": [], "skip_reason": ""}
+{"ts": 1791039825.7, "cycle": 2, "event": "cycle_end", "outcome": "dry_run", "detail": "1 action(s) not sent"}
+{"ts": 1791039864.9, "cycle": 3, "event": "control_line", "state": "RUNNING"}
+{"ts": 1791039890.0, "cycle": 3, "event": "llm_decision", "shown": 30, "proposed": 1, "rejected": [], "skip_reason": ""}
+{"ts": 1791039894.8, "cycle": 3, "event": "cycle_failed", "why": "NetError: post 229542 acknowledged but not visible on re-read", "consecutive": 1}
+{"ts": 1791039894.8, "cycle": 3, "event": "cycle_end", "outcome": "error", "detail": "NetError: post 229542 acknowledged but not visible on re-read"}
+{"ts": 1791039913.7, "cycle": 4, "event": "control_line", "state": "RUNNING"}
+{"ts": 1791039914.0, "cycle": 4, "event": "reconciled_found", "action": 1, "canvas_id": "229542"}
+{"ts": 1791039919.8, "cycle": 4, "event": "llm_decision", "shown": 17, "proposed": 1, "rejected": [], "skip_reason": ""}
+{"ts": 1791039923.6, "cycle": 4, "event": "post_verified", "kind": "reply", "canvas_id": "229543", "parent": "229028"}
+{"ts": 1791039923.6, "cycle": 4, "event": "cycle_end", "outcome": "posted", "detail": "1 verified post(s)"}
+{"ts": 1791043202.7, "cycle": 5, "event": "control_line", "state": "RUNNING"}
+{"ts": 1791043203.5, "cycle": 5, "event": "no_post", "reason": "rate_limited"}
+{"ts": 1791043203.5, "cycle": 5, "event": "cycle_end", "outcome": "no_post", "detail": "rate_limited"}
+{"ts": 1791046076.4, "cycle": null, "event": "FAULT_INJECTION_ARMED", "mode": "lost_ack"}
+{"ts": 1791046077.2, "cycle": 6, "event": "control_line", "state": "RUNNING"}
+{"ts": 1791046091.2, "cycle": 6, "event": "llm_decision", "shown": 2, "proposed": 2, "rejected": [], "skip_reason": ""}
+{"ts": 1791046092.0, "cycle": 6, "event": "write_ambiguous", "why": "injected: response lost after write applied", "attempt": 1}
+{"ts": 1791046095.4, "cycle": 6, "event": "post_verified", "kind": "reply", "canvas_id": "229551", "parent": "229546"}
+{"ts": 1791046098.0, "cycle": 6, "event": "post_verified", "kind": "reply", "canvas_id": "229553", "parent": "229550"}
+{"ts": 1791046098.0, "cycle": 6, "event": "cycle_end", "outcome": "posted", "detail": "2 verified post(s)"}

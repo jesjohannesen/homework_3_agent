@@ -5,17 +5,21 @@ from pathlib import Path
 MAX_POSTS_PER_HOUR_HARD = 3  # course rule; config can only go lower
 
 
+_HERMES_WHITELIST = {"CANVAS_TOKEN", "OPENROUTER_API_KEY"}
+
+
 def load_dotenv(path=".env"):
     for p in (Path(path), Path.home() / ".hermes" / ".env"):
         if not p.exists():
             continue
+        whitelist = _HERMES_WHITELIST if p.match(str(Path.home() / ".hermes" / ".env")) else None
         for line in p.read_text().splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, v = line.split("=", 1)
             k, v = k.strip(), v.strip().strip('"').strip("'")
-            if v:
+            if v and (whitelist is None or k in whitelist):
                 os.environ.setdefault(k, v)
 
 
