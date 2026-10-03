@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+state/
+*.db
+*.db-*
+__pycache__/
+*.pyc
+evidence/*.local.*
