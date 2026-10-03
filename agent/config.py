@@ -6,15 +6,17 @@ MAX_POSTS_PER_HOUR_HARD = 3  # course rule; config can only go lower
 
 
 def load_dotenv(path=".env"):
-    p = Path(path)
-    if not p.exists():
-        return
-    for line in p.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for p in (Path(path), Path.home() / ".hermes" / ".env"):
+        if not p.exists():
             continue
-        k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        for line in p.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if v:
+                os.environ.setdefault(k, v)
 
 
 @dataclass(frozen=True)
