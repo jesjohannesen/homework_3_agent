@@ -19,6 +19,7 @@ class State:
         self.llm_calls = 0
         self.posts = 0
         self.topic_published = True
+        self.lag_reads = 0                # new POSTed entries stay invisible to /view for this many reads (Canvas read lag)
 
     def add(self, user_id, name, message, parent=None):
         self.next_id += 1
@@ -29,8 +30,13 @@ class State:
 
     def tree(self):
         def kids(pid):
-            return [dict(e, replies=kids(e["id"])) for e in self.entries if e["parent_id"] == pid]
-        return kids(None)
+            return [dict(e, replies=kids(e["id"])) for e in self.entries
+                    if e["parent_id"] == pid and e.get("hidden", 0) <= 0]
+        out = kids(None)
+        for e in self.entries:
+            if e.get("hidden", 0) > 0:
+                e["hidden"] -= 1
+        return out
 
 
 def make_server(state):
@@ -77,6 +83,7 @@ def make_server(state):
                 parent = int(parts[-2]) if path.endswith("/replies") else None
                 msg = parse_qs(body.decode())["message"][0]
                 e = state.add(state.me, "Me", msg, parent)
+                e["hidden"] = state.lag_reads
                 state.posts += 1
                 if state.drop_response_once:
                     state.drop_response_once = False

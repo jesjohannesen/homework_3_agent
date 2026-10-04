@@ -88,6 +88,12 @@ class Memory:
         self.db.executemany("UPDATE entries SET handled=1 WHERE id=?", [(i,) for i in ids])
         self.db.commit()
 
+    def unhandle(self, entry_id):
+        """A planned reply that never landed makes its target eligible for reconsideration."""
+        if entry_id:
+            self.db.execute("UPDATE entries SET handled=0 WHERE id=?", (entry_id,))
+            self.db.commit()
+
     def own_texts(self, limit=12):
         rows = self.db.execute("SELECT body FROM actions WHERE status IN ('pending','posted','verified') "
                                "ORDER BY id DESC LIMIT ?", (limit,)).fetchall()

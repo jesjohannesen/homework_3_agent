@@ -176,19 +176,53 @@ class TestRecovery(Base):
         self.assertEqual(self.agent().run_cycle(), "posted")
         self.assertEqual(len(self.mine()), 1)
 
-    def test_timeout_before_send_retries_once_and_posts_once(self):
+    def test_timeout_before_send_never_reposts_in_cycle_then_posts_once_next_cycle(self):
         self.state.llm_script = [{"actions": [self.act]}]
-        self.assertEqual(self.agent(fault=FaultInjector("timeout")).run_cycle(), "posted")
+        a = self.agent(fault=FaultInjector("timeout"))
+        self.assertEqual(a.run_cycle(), "error")           # outcome unknown -> stop, don't guess
+        self.assertEqual(len(self.mine()), 0)
+        self.now += 3 * 3600                                # next scheduled cycle: reconcile finds nothing -> abandon -> repost
+        self.state.llm_script = [{"actions": [self.act]}]
+        a.run_cycle()
         self.assertEqual(len(self.mine()), 1)
 
     def test_http500_and_malformed(self):
-        for mode in ("http500", "malformed"):
+        for mode, applied in (("http500", 0), ("malformed", 1)):
             self.setUp()
             self.state.llm_script = [{"actions": [self.act]}]
-            self.assertEqual(self.agent(fault=FaultInjector(mode)).run_cycle(), "posted")
+            a = self.agent(fault=FaultInjector(mode))
+            a.run_cycle()
+            self.assertEqual(len(self.mine()), applied, mode)
+            self.now += 3 * 3600
+            self.state.llm_script = [{"actions": [self.act]}]
+            a.run_cycle()
             self.assertEqual(len(self.mine()), 1, mode)
             self.tearDown()
         self.setUp()
+
+    def test_lost_ack_with_canvas_read_lag_does_not_duplicate(self):
+        # Real Canvas: the POST lands but is not visible on the next few reads. 'Not visible yet' != 'not posted'.
+        self.state.lag_reads = 3
+        self.state.llm_script = [{"actions": [self.act]}]
+        self.agent(fault=FaultInjector("lost_ack")).run_cycle()
+        self.assertEqual(len(self.mine()), 1, "duplicate post created by retrying while the first was still invisible")
+
+    def test_prolonged_lag_leaves_intent_pending_then_next_cycle_reconciles(self):
+        self.state.lag_reads = 40
+        self.state.llm_script = [{"actions": [self.act]}]
+        a = self.agent(fault=FaultInjector("lost_ack"))
+        a.run_cycle()
+        self.assertEqual(len(self.mine()), 1)
+        self.assertEqual(self.mem.pending()[0]["status"], "pending")
+        self.state.lag_reads = 0
+        for e in self.state.entries:
+            e["hidden"] = 0
+        self.now += 3 * 3600
+        self.state.llm_script = [{"actions": [self.act]}]
+        self.agent().run_cycle()
+        self.assertEqual(len(self.mine()), 1)
+        self.assertFalse(self.mem.pending())
+        self.assertTrue(self.events("reconciled_found"))
 
     def test_crash_after_write_then_restart(self):
         def die():
@@ -213,6 +247,9 @@ class TestRecovery(Base):
         aid = self.mem.begin_action("reply", str(self.o["id"]), GOOD, safety.norm(GOOD), self.now)
         self.assertIsNotNone(aid)
         self.state.llm_script = []
+        self.agent().run_cycle()
+        self.assertEqual(self.mem.get_action(aid)["status"], "pending")   # too fresh to call
+        self.now += 3600
         self.agent().run_cycle()
         self.assertEqual(self.mem.get_action(aid)["status"], "abandoned")
         self.assertEqual(self.state.posts, 0)

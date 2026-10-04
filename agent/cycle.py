@@ -7,6 +7,9 @@ from .decide import make_plan
 from .net import NetError
 
 
+RECONCILE_GRACE_S = 900  # an unconfirmed intent younger than this is never declared 'missing'
+
+
 class Log:
     def __init__(self, path, secrets, echo=True, clock=time.time):
         self.path, self.secrets, self.echo, self.clock, self.cycle = path, secrets, echo, clock, None
@@ -129,60 +132,65 @@ class Agent:
             if e:
                 self.mem.set_status(a["id"], "verified", self.clock(), e.id, "reconciled from Canvas")
                 self.log("reconciled_found", action=a["id"], canvas_id=e.id)
+            elif self.clock() - a["updated"] < RECONCILE_GRACE_S:
+                self.log("reconcile_deferred", action=a["id"])  # too fresh to call: Canvas reads lag writes
             else:
                 self.mem.set_status(a["id"], "abandoned", self.clock(), detail="not on Canvas; safe to retry later")
+                self.mem.unhandle(a["parent_id"])
                 self.log("reconciled_missing", action=a["id"])
 
     # --------------------------------------------------------------- write
     def _guarded_write(self, a):
         cfg, mem = self.cfg, self.mem
         body = a["body"]
-        aid = None
-        for attempt in (1, 2):
-            # Required by the course: fetch the topic and read the control line before EVERY write.
-            topic = self.canvas.get_topic(self.course, self.topic)
-            state = safety.control_state(topic.get("message", ""))
-            if state != "RUNNING":
-                self.log("write_blocked", state=state)
-                if aid:
-                    mem.set_status(aid, "abandoned", self.clock(), detail=f"control {state}")
-                return False
-            now = self.clock()
-            if mem.writes_since(now - 3600) >= cfg.max_posts_per_hour or mem.writes_since(now - 86400) >= cfg.max_posts_per_day:
-                self.log("write_blocked", state="rate_limited")
-                return False
-            if aid is None:
-                aid = mem.begin_action(a["kind"], a["parent_id"], body, safety.norm(body), now)
-                if aid is None:
-                    self.log("duplicate_prevented", kind=a["kind"], parent=a["parent_id"])
-                    return False
+        # Required by the course: fetch the topic and read the control line before EVERY write.
+        topic = self.canvas.get_topic(self.course, self.topic)
+        state = safety.control_state(topic.get("message", ""))
+        if state != "RUNNING":
+            self.log("write_blocked", state=state)
+            return False
+        now = self.clock()
+        if mem.writes_since(now - 3600) >= cfg.max_posts_per_hour or mem.writes_since(now - 86400) >= cfg.max_posts_per_day:
+            self.log("write_blocked", state="rate_limited")
+            return False
+        aid = mem.begin_action(a["kind"], a["parent_id"], body, safety.norm(body), now)
+        if aid is None:
+            self.log("duplicate_prevented", kind=a["kind"], parent=a["parent_id"])
+            return False
+        mem.bump_attempt(aid)
+        html = safety.to_html(body)
+        try:
+            if a["kind"] == "reply":
+                res = self.canvas.post_reply(self.course, self.topic, a["parent_id"], html)
             else:
-                mem.set_status(aid, "pending", now)
-            mem.bump_attempt(aid)
-            html = safety.to_html(body)
-            try:
-                if a["kind"] == "reply":
-                    res = self.canvas.post_reply(self.course, self.topic, a["parent_id"], html)
-                else:
-                    res = self.canvas.post_entry(self.course, self.topic, html)
-            except NetError as e:
-                if not e.ambiguous:
-                    mem.set_status(aid, "failed", self.clock(), detail=str(e))
-                    raise
-                self.log("write_ambiguous", why=str(e), attempt=attempt)
-                found = self._find_own(self.canvas.get_entries(self.course, self.topic), mem.get_action(aid))
-                if found:  # the write DID land: record it, never repost
-                    mem.set_status(aid, "verified", self.clock(), found.id, "recovered after ambiguous failure")
-                    self.log("recovered_no_duplicate", canvas_id=found.id)
-                    return True
-                self.sleep(2 ** attempt)
-                if attempt == 2:
-                    mem.set_status(aid, "failed", self.clock(), detail="ambiguous twice, not on Canvas")
-                    raise
-                continue
-            mem.set_status(aid, "posted", self.clock(), str(res["id"]))
-            return self._verify(aid, str(res["id"]))
-        return False
+                res = self.canvas.post_entry(self.course, self.topic, html)
+        except NetError as e:
+            if not e.ambiguous:
+                mem.set_status(aid, "failed", self.clock(), detail=str(e))
+                mem.unhandle(a["parent_id"])
+                raise
+            self.log("write_ambiguous", why=str(e))
+            # The write may or may not have landed, and Canvas reads lag behind writes, so "not visible yet" proves
+            # nothing. Wait for it to show up; if it never does, NEVER repost in this cycle -- leave the intent
+            # pending and let the next cycle's reconcile settle it.
+            found = self._await_own(mem.get_action(aid))
+            if found:
+                mem.set_status(aid, "verified", self.clock(), found.id, "recovered after ambiguous failure")
+                self.log("recovered_no_duplicate", canvas_id=found.id)
+                return True
+            mem.set_status(aid, "pending", self.clock(), detail="outcome unknown; reconcile next cycle")
+            self.log("write_unconfirmed", action=aid)
+            raise NetError("write outcome unknown after waiting; not retrying (will reconcile next cycle)")
+        mem.set_status(aid, "posted", self.clock(), str(res["id"]))
+        return self._verify(aid, str(res["id"]))
+
+    def _await_own(self, action, delays=(1, 2, 4, 8, 15, 30)):
+        for d in (0,) + tuple(delays):
+            self.sleep(d)
+            e = self._find_own(self.canvas.get_entries(self.course, self.topic), action)
+            if e:
+                return e
+        return None
 
     def _verify(self, aid, canvas_id):
         act = self.mem.get_action(aid)
