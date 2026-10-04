@@ -36,3 +36,15 @@ laptop, keep the machine awake or use a VM. Losing `state/` loses the dedupe mem
    `malformed`, `crash`). Expect events `write_ambiguous` then `recovered_no_duplicate`, and exactly one new post on
    Canvas. Save that log excerpt.
 4. Redact before sharing: logs already scrub secrets, but grep for the token anyway. Never include `.env` or `state/agent.db` in the ZIP.
+
+## Hand-in checklist (run on the machine that has `state/`)
+1. `git pull` (the lagging-Canvas duplicate fix is required before the failure demo is re-run), then run the tests (22 pass).
+2. **Check the forum for duplicates first:** `python3 scripts/presubmit_check.py --live`. If it reports an identical reply
+   pair, that is a duplicate from the earlier `lost_ack` demo; the user deletes the later copy of **their own** post in the
+   Canvas UI. Never touch anyone else's posts.
+3. Re-run the failure demo once: `HW3_FAULT=lost_ack python3 -m agent run`. Expect `write_ambiguous` then
+   `recovered_no_duplicate` (or `write_unconfirmed` now, and `reconciled_found` in the next cycle). Exactly one new post.
+4. Let several cron cycles accumulate, including a quiet one (`no_post` with reason `nothing_new` or `model_chose_silence`).
+5. Update `SUBMISSION.md` from the real `cycles.jsonl` (quote lines exactly); keep any honest mention of the duplicate
+   bug found and fixed. Then `python3 scripts/presubmit_check.py --live` must show no FAIL.
+6. `python3 scripts/package_submission.py` builds `hw3-submission.zip` (code + README + redacted log, no secrets).
